@@ -40,6 +40,14 @@ export function elementAtPath(root: Element, path: ElementPath): Element | null 
   return node;
 }
 
+/** Path of the element carrying `data-edit-id="<editId>"` inside `html`. */
+export function pathOfEditId(html: string, editId: string): ElementPath | null {
+  const doc = docFromHtml(html);
+  if (!doc.body) return null;
+  const el = doc.body.querySelector(`[data-edit-id="${CSS.escape(editId)}"]`);
+  return el ? pathOf(el, doc.body) : null;
+}
+
 /** outerHTML of the element at `path` inside `html`, optionally tagged with an edit id. */
 export function readSnippetAtPath(
   html: string,
