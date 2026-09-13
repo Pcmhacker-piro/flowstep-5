@@ -749,8 +749,23 @@ function AppHome() {
       signal,
     });
     if (!res.ok || !res.body) {
-      throw new Error((await res.text().catch(() => "")) || `Edit failed (${res.status})`);
+      const raw = await res.text().catch(() => "");
+      let detail = raw;
+      try {
+        const parsed = JSON.parse(raw) as { message?: string; title?: string };
+        detail = parsed.message || parsed.title || raw;
+      } catch {
+        // plain-text error body
+      }
+      if (res.status === 402) {
+        detail =
+          "Out of AI credits. Add credits in Lovable, or add your own provider key on the API keys page and pick that model.";
+      } else if (res.status === 401 || res.status === 403) {
+        detail = detail || "AI access is blocked for this workspace.";
+      }
+      throw new Error(detail || `Edit failed (${res.status})`);
     }
+
 
     let accumulated = "";
     let streamError: string | undefined;
@@ -875,11 +890,21 @@ function AppHome() {
       const isAbort =
         controller.signal.aborted &&
         results.every((r) => r.status === "rejected");
+      const firstReason = results.find((r) => r.status === "rejected") as
+        | PromiseRejectedResult
+        | undefined;
+      const reasonText =
+        firstReason?.reason instanceof Error
+          ? firstReason.reason.message
+          : typeof firstReason?.reason === "string"
+            ? firstReason.reason
+            : "";
       const reply = isAbort
         ? "Edit stopped."
         : failCount === 0
           ? `Updated ${okCount} section${okCount === 1 ? "" : "s"}.`
-          : `Updated ${okCount} · ${failCount} failed.`;
+          : `Updated ${okCount} · ${failCount} failed.${reasonText ? ` ${reasonText}` : ""}`;
+
       setMessages((m) => [...m, { id: uid(), role: "assistant", text: reply }]);
       // Re-pulse the first still-selected target after the iframe re-renders
       // so the user can see the change land on the element they were editing.
