@@ -34,7 +34,13 @@ import {
 } from "lucide-react";
 
 import { DesignFrame, type PartSelection } from "@/components/DesignFrame";
-import { readSnippetAtPath, spliceAtPath } from "@/lib/htmlSplice";
+import {
+  firstElementOf,
+  pathOfEditId,
+  readSnippetAtPath,
+  resolveElementPath,
+  spliceAtPath,
+} from "@/lib/htmlSplice";
 import { Inspector } from "@/components/Inspector";
 import { exportDesignZip, exportDesignImage } from "@/lib/exportDesign";
 
@@ -224,8 +230,13 @@ function AppHome() {
       (i) => i.id === sel.designId && i.type === "design",
     );
     if (design && design.type === "design") {
-      const source = readSnippetAtPath(design.html, sel.path, sel.editId);
-      if (source) enriched = { ...sel, snippet: source, preSnippet: source };
+      // The click path comes from the live iframe DOM; re-verify it against the
+      // stored HTML so the edit can never land on a neighbouring element.
+      const truePath = resolveElementPath(design.html, sel.path, sel.preSnippet);
+      if (truePath) {
+        const source = readSnippetAtPath(design.html, truePath, sel.editId);
+        if (source) enriched = { ...sel, path: truePath, snippet: source, preSnippet: source };
+      }
     }
     setEditTargets((prev) =>
       prev.some((t) => t.editId === enriched.editId) ? prev : [...prev, enriched],
@@ -272,27 +283,13 @@ function AppHome() {
       setEditTargets((prev) => {
         if (prev.length !== 1) return prev;
         const target = prev[0];
-        const escaped = target.editId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const re = new RegExp(
-          `<([a-zA-Z][\\w-]*)[^>]*data-edit-id=["']${escaped}["'][\\s\\S]*?</\\1>`,
-          "m",
-        );
         mutateItems(`Edit ${target.label}`, (it) =>
           it.map((i) => {
             if (i.id !== target.designId || i.type !== "design") return i;
-            let nextHtml = i.html;
-            const byPath = spliceAtPath(i.html, target.path, nextSnippet);
-            if (byPath) {
-              nextHtml = byPath;
-            } else if (i.html.includes(target.snippet)) {
-              nextHtml = i.html.replace(target.snippet, nextSnippet);
-            } else if (i.html.includes(target.preSnippet)) {
-              nextHtml = i.html.replace(target.preSnippet, nextSnippet);
-            } else if (re.test(i.html)) {
-              nextHtml = i.html.replace(re, nextSnippet);
-            } else {
-              return i;
-            }
+            const path = resolveElementPath(i.html, target.path, target.snippet);
+            if (!path) return i;
+            const nextHtml = spliceAtPath(i.html, path, nextSnippet);
+            if (!nextHtml) return i;
             return { ...i, html: nextHtml };
           }),
         );
@@ -831,25 +828,23 @@ function AppHome() {
             const { target, newSnippet: rawSnippet } = r.value;
             if (target.designId !== i.id) continue;
             const newSnippet = ensureEditId(rawSnippet, target.editId);
-            const byPath = spliceAtPath(html, target.path, newSnippet);
-            if (byPath) {
-              html = byPath;
+            // Refuse anything that is not a single same-tag element: a full
+            // document coming back from the model must never overwrite the page.
+            const replacementRoot = firstElementOf(newSnippet);
+            const originalRoot = firstElementOf(target.snippet);
+            if (
+              !replacementRoot ||
+              !originalRoot ||
+              replacementRoot.tagName === "HTML" ||
+              replacementRoot.tagName !== originalRoot.tagName
+            ) {
               continue;
             }
-            if (html.includes(target.snippet)) {
-              html = html.replace(target.snippet, newSnippet);
-              continue;
-            }
-            if (html.includes(target.preSnippet)) {
-              html = html.replace(target.preSnippet, newSnippet);
-              continue;
-            }
-            const escaped = target.editId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-            const re = new RegExp(
-              `<([a-zA-Z][\\w-]*)[^>]*data-edit-id=["']${escaped}["'][\\s\\S]*?</\\1>`,
-              "m",
-            );
-            if (re.test(html)) html = html.replace(re, newSnippet);
+            // Re-locate the element in the CURRENT html before replacing it.
+            const path = resolveElementPath(html, target.path, target.snippet);
+            if (!path) continue;
+            const byPath = spliceAtPath(html, path, newSnippet);
+            if (byPath) html = byPath;
           }
           if (html === i.html) return i;
           nextHtmlByDesign.set(i.id, html);
@@ -865,16 +860,12 @@ function AppHome() {
           prev.map((t) => {
             const html = nextHtmlByDesign.get(t.designId);
             if (!html) return t;
-            const fresh = readSnippetAtPath(html, t.path, t.editId);
-            if (fresh) return { ...t, snippet: fresh, preSnippet: fresh };
-            const escaped = t.editId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-            const re = new RegExp(
-              `<([a-zA-Z][\\w-]*)[^>]*data-edit-id=["']${escaped}["'][\\s\\S]*?</\\1>`,
-              "m",
-            );
-            const m = html.match(re);
-            if (!m) return t;
-            return { ...t, snippet: m[0], preSnippet: m[0] };
+            // After splicing, the element carries its data-edit-id in the stored
+            // HTML, so re-address it by id and refresh both path and snippet.
+            const path = pathOfEditId(html, t.editId) ?? t.path;
+            const fresh = readSnippetAtPath(html, path, t.editId);
+            if (!fresh) return t;
+            return { ...t, path, snippet: fresh, preSnippet: fresh };
           }),
         );
       }
