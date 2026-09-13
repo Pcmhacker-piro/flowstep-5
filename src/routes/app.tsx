@@ -224,8 +224,13 @@ function AppHome() {
       (i) => i.id === sel.designId && i.type === "design",
     );
     if (design && design.type === "design") {
-      const source = readSnippetAtPath(design.html, sel.path, sel.editId);
-      if (source) enriched = { ...sel, snippet: source, preSnippet: source };
+      // The click path comes from the live iframe DOM; re-verify it against the
+      // stored HTML so the edit can never land on a neighbouring element.
+      const truePath = resolveElementPath(design.html, sel.path, sel.preSnippet);
+      if (truePath) {
+        const source = readSnippetAtPath(design.html, truePath, sel.editId);
+        if (source) enriched = { ...sel, path: truePath, snippet: source, preSnippet: source };
+      }
     }
     setEditTargets((prev) =>
       prev.some((t) => t.editId === enriched.editId) ? prev : [...prev, enriched],
