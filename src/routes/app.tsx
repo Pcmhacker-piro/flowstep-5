@@ -822,25 +822,23 @@ function AppHome() {
             const { target, newSnippet: rawSnippet } = r.value;
             if (target.designId !== i.id) continue;
             const newSnippet = ensureEditId(rawSnippet, target.editId);
-            const byPath = spliceAtPath(html, target.path, newSnippet);
-            if (byPath) {
-              html = byPath;
+            // Refuse anything that is not a single same-tag element: a full
+            // document coming back from the model must never overwrite the page.
+            const replacementRoot = firstElementOf(newSnippet);
+            const originalRoot = firstElementOf(target.snippet);
+            if (
+              !replacementRoot ||
+              !originalRoot ||
+              replacementRoot.tagName === "HTML" ||
+              replacementRoot.tagName !== originalRoot.tagName
+            ) {
               continue;
             }
-            if (html.includes(target.snippet)) {
-              html = html.replace(target.snippet, newSnippet);
-              continue;
-            }
-            if (html.includes(target.preSnippet)) {
-              html = html.replace(target.preSnippet, newSnippet);
-              continue;
-            }
-            const escaped = target.editId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-            const re = new RegExp(
-              `<([a-zA-Z][\\w-]*)[^>]*data-edit-id=["']${escaped}["'][\\s\\S]*?</\\1>`,
-              "m",
-            );
-            if (re.test(html)) html = html.replace(re, newSnippet);
+            // Re-locate the element in the CURRENT html before replacing it.
+            const path = resolveElementPath(html, target.path, target.snippet);
+            if (!path) continue;
+            const byPath = spliceAtPath(html, path, newSnippet);
+            if (byPath) html = byPath;
           }
           if (html === i.html) return i;
           nextHtmlByDesign.set(i.id, html);
