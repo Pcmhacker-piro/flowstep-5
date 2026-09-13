@@ -749,8 +749,23 @@ function AppHome() {
       signal,
     });
     if (!res.ok || !res.body) {
-      throw new Error((await res.text().catch(() => "")) || `Edit failed (${res.status})`);
+      const raw = await res.text().catch(() => "");
+      let detail = raw;
+      try {
+        const parsed = JSON.parse(raw) as { message?: string; title?: string };
+        detail = parsed.message || parsed.title || raw;
+      } catch {
+        // plain-text error body
+      }
+      if (res.status === 402) {
+        detail =
+          "Out of AI credits. Add credits in Lovable, or add your own provider key on the API keys page and pick that model.";
+      } else if (res.status === 401 || res.status === 403) {
+        detail = detail || "AI access is blocked for this workspace.";
+      }
+      throw new Error(detail || `Edit failed (${res.status})`);
     }
+
 
     let accumulated = "";
     let streamError: string | undefined;
