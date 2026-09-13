@@ -2,6 +2,18 @@
 @source "../src";
 @import "tw-animate-css";
 
+@keyframes marquee-y {
+  0%, 8% { transform: translateY(0); }
+  50%, 58% { transform: translateY(-25%); }
+  100% { transform: translateY(-50%); }
+}
+
+@utility animate-marquee-y {
+  animation: marquee-y 40s ease-in-out infinite;
+}
+
+
+
 @custom-variant dark (&:is(.dark *));
 
 /*
@@ -141,4 +153,71 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
   }
+}
+
+/* Rainbow animated border shown while a design is streaming onto the canvas */
+@keyframes rainbow-spin {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 300% 50%; }
+}
+.animated-rainbow-border {
+  position: relative;
+}
+.animated-rainbow-border::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  z-index: -1;
+  border-radius: 1.15rem;
+  background: linear-gradient(90deg,
+    #ff5f6d, #ffc371, #47e0a0, #2b6bff, #a855f7, #ec4899, #ff5f6d);
+  background-size: 300% 100%;
+  filter: blur(6px);
+  animation: rainbow-spin 3.5s linear infinite;
+}
+
+/* Skeleton shimmer for streaming design placeholders */
+@keyframes shimmer-slide {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background-image: linear-gradient(
+    90deg,
+    rgba(148, 163, 184, 0.08) 0%,
+    rgba(148, 163, 184, 0.22) 50%,
+    rgba(148, 163, 184, 0.08) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer-slide 1.6s ease-in-out infinite;
+}
+
+
+/* Hide the "Made with Lovable" badge without affecting layout */
+#lovable-badge,
+a[href*="lovable.dev"][target="_blank"][class*="badge"],
+[data-lovable-badge],
+[id^="lovable-badge"],
+[class*="lovable-badge"] {
+  display: none !important;
+}
+
+/* Premium scroll reveal */
+.reveal {
+  opacity: 0;
+  transform: translate3d(0, 34px, 0) scale(0.985);
+  filter: blur(10px);
+  transition:
+    opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 1s cubic-bezier(0.16, 1, 0.3, 1),
+    filter 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform, filter;
+}
+.reveal-in {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+  filter: blur(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; filter: none; transition: none; }
 }

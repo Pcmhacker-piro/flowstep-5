@@ -1,0 +1,97 @@
+{
+  "version": 1,
+  "sdk_version": "0.20.1",
+  "path": "/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://skmnatejrsptzlfbtsyd.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "flowstep-mcp",
+      "version": "0.1.0",
+      "title": "Flowstep"
+    },
+    "tools": [
+      {
+        "name": "get_my_profile",
+        "title": "Get my profile",
+        "description": "Return the signed-in Flowstep user's profile: id, email, full name, and avatar URL.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "update_my_profile",
+        "title": "Update my profile",
+        "description": "Update the signed-in Flowstep user's full name and/or avatar URL. Only provided fields are changed.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "full_name": {
+              "description": "New display name for the profile.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "avatar_url": {
+              "description": "Absolute https URL of an avatar image.",
+              "type": "string",
+              "maxLength": 2048,
+              "format": "uri"
+            }
+          }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "generate_design_brief",
+        "title": "Generate a Flowstep design brief",
+        "description": "Expand a short product idea into a structured Flowstep design brief (audience, tone, sections, visual direction) that the signed-in user can paste into the Flowstep canvas as a prompt.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "idea": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 2000,
+              "description": "A short description of the product, page, or landing site to design."
+            },
+            "audience": {
+              "description": "Optional target audience (e.g. 'indie developers', 'HR leaders').",
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "idea"
+          ]
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
