@@ -68,12 +68,102 @@ export function spliceAtPath(
   const el = elementAtPath(doc.body, path);
   if (!el || !el.parentNode) return null;
 
-  const fragmentDoc = docFromHtml(`<body>${newSnippet}</body>`);
-  const replacement = fragmentDoc.body?.firstElementChild;
+  const replacement = firstElementOf(newSnippet);
   if (!replacement) return null;
 
   el.parentNode.replaceChild(doc.importNode(replacement, true), el);
   return serialize(doc, html);
+}
+
+// ---------------------------------------------------------------------------
+// Path verification
+//
+// The path is captured in the LIVE iframe DOM, but applied to the stored HTML
+// string. Those two trees can drift (scripts that inject nodes, markup the
+// parser relocates), and a one-off index silently rewrites the WRONG element.
+// So every path is re-verified against a signature of the picked element, and
+// re-derived by search when it does not line up.
+// ---------------------------------------------------------------------------
+
+type Signature = { tag: string; cls: string; text: string; kids: number };
+
+function normText(s: string): string {
+  return s.replace(/\s+/g, " ").trim().slice(0, 160);
+}
+
+/** Parse a snippet and return its single root element (handles full documents). */
+export function firstElementOf(snippet: string): Element | null {
+  const trimmed = snippet.trim();
+  const doc = docFromHtml(
+    /^<!doctype|^<html[\s>]/i.test(trimmed) ? trimmed : `<body>${trimmed}</body>`,
+  );
+  return doc.body?.firstElementChild ?? null;
+}
+
+function signatureOf(el: Element): Signature {
+  return {
+    tag: el.tagName.toLowerCase(),
+    cls: (el.getAttribute("class") ?? "").replace(/\s+/g, " ").trim(),
+    text: normText(el.textContent ?? ""),
+    kids: el.children.length,
+  };
+}
+
+function scoreMatch(a: Signature, b: Signature): number {
+  if (a.tag !== b.tag) return 0;
+  let score = 1;
+  if (a.cls && a.cls === b.cls) score += 3;
+  if (a.text && a.text === b.text) score += 3;
+  if (!a.text && !b.text) score += 1;
+  if (a.kids === b.kids) score += 1;
+  return score;
+}
+
+/**
+ * Return the path that really points at the picked element inside `html`.
+ * Prefers `path` when it still matches the element's signature; otherwise finds
+ * the best unique match. Returns null when the element cannot be located — the
+ * caller must then skip the edit rather than clobber an unrelated element.
+ */
+export function resolveElementPath(
+  html: string,
+  path: ElementPath,
+  snippet: string,
+): ElementPath | null {
+  const ref = firstElementOf(snippet);
+  if (!ref) return null;
+  ref.removeAttribute("data-edit-id");
+  ref.removeAttribute("data-lov-hover");
+  const sig = signatureOf(ref);
+
+  const doc = docFromHtml(html);
+  if (!doc.body) return null;
+
+  const perfect = 1 + (sig.cls ? 3 : 0) + (sig.text ? 3 : 0) + (sig.text ? 0 : 1) + 1;
+
+  const candidate = path.length > 0 ? elementAtPath(doc.body, path) : null;
+  if (candidate && scoreMatch(sig, signatureOf(candidate)) >= perfect) return path;
+
+  let best: Element | null = null;
+  let bestScore = 0;
+  let ties = 0;
+  doc.body.querySelectorAll(sig.tag).forEach((el) => {
+    const score = scoreMatch(sig, signatureOf(el));
+    if (score > bestScore) {
+      bestScore = score;
+      best = el;
+      ties = 1;
+    } else if (score === bestScore && score > 0) {
+      ties++;
+    }
+  });
+
+  // Weak or ambiguous matches are not good enough to edit blindly.
+  if (!best || bestScore < 4) {
+    return candidate && scoreMatch(sig, signatureOf(candidate)) >= 4 ? path : null;
+  }
+  if (ties > 1 && bestScore < perfect) return null;
+  return pathOf(best, doc.body);
 }
 
 /** Short human label for a picked element. */
