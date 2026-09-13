@@ -890,11 +890,21 @@ function AppHome() {
       const isAbort =
         controller.signal.aborted &&
         results.every((r) => r.status === "rejected");
+      const firstReason = results.find((r) => r.status === "rejected") as
+        | PromiseRejectedResult
+        | undefined;
+      const reasonText =
+        firstReason?.reason instanceof Error
+          ? firstReason.reason.message
+          : typeof firstReason?.reason === "string"
+            ? firstReason.reason
+            : "";
       const reply = isAbort
         ? "Edit stopped."
         : failCount === 0
           ? `Updated ${okCount} section${okCount === 1 ? "" : "s"}.`
-          : `Updated ${okCount} · ${failCount} failed.`;
+          : `Updated ${okCount} · ${failCount} failed.${reasonText ? ` ${reasonText}` : ""}`;
+
       setMessages((m) => [...m, { id: uid(), role: "assistant", text: reply }]);
       // Re-pulse the first still-selected target after the iframe re-renders
       // so the user can see the change land on the element they were editing.
