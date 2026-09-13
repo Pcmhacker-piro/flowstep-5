@@ -854,16 +854,12 @@ function AppHome() {
           prev.map((t) => {
             const html = nextHtmlByDesign.get(t.designId);
             if (!html) return t;
-            const fresh = readSnippetAtPath(html, t.path, t.editId);
-            if (fresh) return { ...t, snippet: fresh, preSnippet: fresh };
-            const escaped = t.editId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-            const re = new RegExp(
-              `<([a-zA-Z][\\w-]*)[^>]*data-edit-id=["']${escaped}["'][\\s\\S]*?</\\1>`,
-              "m",
-            );
-            const m = html.match(re);
-            if (!m) return t;
-            return { ...t, snippet: m[0], preSnippet: m[0] };
+            // After splicing, the element carries its data-edit-id in the stored
+            // HTML, so re-address it by id and refresh both path and snippet.
+            const path = pathOfEditId(html, t.editId) ?? t.path;
+            const fresh = readSnippetAtPath(html, path, t.editId);
+            if (!fresh) return t;
+            return { ...t, path, snippet: fresh, preSnippet: fresh };
           }),
         );
       }
