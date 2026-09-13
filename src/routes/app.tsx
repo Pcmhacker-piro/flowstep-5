@@ -277,27 +277,13 @@ function AppHome() {
       setEditTargets((prev) => {
         if (prev.length !== 1) return prev;
         const target = prev[0];
-        const escaped = target.editId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const re = new RegExp(
-          `<([a-zA-Z][\\w-]*)[^>]*data-edit-id=["']${escaped}["'][\\s\\S]*?</\\1>`,
-          "m",
-        );
         mutateItems(`Edit ${target.label}`, (it) =>
           it.map((i) => {
             if (i.id !== target.designId || i.type !== "design") return i;
-            let nextHtml = i.html;
-            const byPath = spliceAtPath(i.html, target.path, nextSnippet);
-            if (byPath) {
-              nextHtml = byPath;
-            } else if (i.html.includes(target.snippet)) {
-              nextHtml = i.html.replace(target.snippet, nextSnippet);
-            } else if (i.html.includes(target.preSnippet)) {
-              nextHtml = i.html.replace(target.preSnippet, nextSnippet);
-            } else if (re.test(i.html)) {
-              nextHtml = i.html.replace(re, nextSnippet);
-            } else {
-              return i;
-            }
+            const path = resolveElementPath(i.html, target.path, target.snippet);
+            if (!path) return i;
+            const nextHtml = spliceAtPath(i.html, path, nextSnippet);
+            if (!nextHtml) return i;
             return { ...i, html: nextHtml };
           }),
         );
